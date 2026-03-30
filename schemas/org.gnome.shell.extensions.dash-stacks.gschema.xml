@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.dash-stacks" path="/org/gnome/shell/extensions/dash-stacks/">
+    <key name="stacks" type="s">
+      <default>'[{"name":"Downloads","path":"~/Downloads","icon":"folder-download-symbolic"},{"name":"Projects","path":"~/Documents","icon":"folder-documents-symbolic"}]'</default>
+      <summary>Stacks Configuration</summary>
+      <description>JSON string containing the stacks configuration array.</description>
+    </key>
+  </schema>
+</schemalist>
