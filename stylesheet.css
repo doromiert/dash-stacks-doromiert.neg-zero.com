@@ -94,3 +94,35 @@
 .dash-scroll-view StScrollBar {
     opacity: 0;
 }
+
+/* --- CUSTOM DASH LAYOUT TUNING --- */
+
+/* The outer container holding an app icon */
+.dash-custom-app-container {
+    width: 76px !important;
+}
+
+/* The actual clickable app button inside */
+.dash-custom-app-child {
+    width: 76px !important;
+    height: 76px !important; /* Force perfect squares */
+    margin: 0 !important;    /* Kill GNOME's invisible padding */
+    padding: 0 !important;
+}
+
+/* The separator */
+.dash-custom-sep-container, 
+.dash-custom-sep-child {
+    width: 1px !important;
+    /* You can tweak these live now if the totalWidth math gets slightly off */
+    /* margin-left: 6px !important; */
+    /* margin-right: 6px !important; */
+}
+
+/* Ensure the ghost spacer STAYS dead */
+.dash-custom-ghost-spacer {
+    width: 0px !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    opacity: 0 !important;
+}
