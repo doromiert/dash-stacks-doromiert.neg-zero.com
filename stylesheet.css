@@ -56,7 +56,7 @@
 .dash-stacks-context-menu .popup-separator-menu-item {
     /* change the 24px to shrink/grow the line horizontally */
     padding: 0px 6px !important; 
-    margin: 0px 0px 6px 0px !important;
+    margin: 6px 0px 6px 0px !important;
 }
 
 .dash-stacks-context-menu .popup-menu-separator {
