@@ -715,8 +715,82 @@ export default class DashStacksExtension extends Extension {
       this.dashScroll.reactive = true;
       this.dashWrapper.reactive = true;
 
-      // Scroll Logic... (truncated for brevity, keep your existing scroll logic here)
-      // ... [Insert your original scroll handler logic here] ...
+         // 2. THE MASTER INPUT HIJACKER (Mouse + Touch)
+      let dashTouchStartX = null;
+      let dashLastTouchX = null;
+      let dashIsDragging = false;
+
+      this.dashScroll.connect("captured-event", (actor, event) => {
+        let type = event.type();
+        let adj = this.dashScroll.hadjustment;
+
+        // --- MOUSE WHEEL ---
+        if (type === Clutter.EventType.SCROLL) {
+          let direction = event.get_scroll_direction();
+          let scrollAmount = 76; // one icon width
+
+          if (direction === Clutter.ScrollDirection.SMOOTH) {
+            let [dx, dy] = event.get_scroll_delta();
+            // Handle touchpads that map vertical two-finger to horizontal
+            let delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+            adj.value += delta * 30;
+          } else if (
+            direction === Clutter.ScrollDirection.UP ||
+            direction === Clutter.ScrollDirection.LEFT
+          ) {
+            adj.value -= scrollAmount;
+          } else if (
+            direction === Clutter.ScrollDirection.DOWN ||
+            direction === Clutter.ScrollDirection.RIGHT
+          ) {
+            adj.value += scrollAmount;
+          }
+
+          // Kill the event so GNOME doesn't switch workspaces
+          return Clutter.EVENT_STOP;
+        }
+
+        // --- TOUCH SCREEN SWIPE ---
+        if (type === Clutter.EventType.TOUCH_BEGIN) {
+          let [x, y] = event.get_coords();
+          dashTouchStartX = x;
+          dashLastTouchX = x;
+          dashIsDragging = false;
+          return Clutter.EVENT_PROPAGATE;
+        }
+
+        if (type === Clutter.EventType.TOUCH_UPDATE) {
+          if (dashTouchStartX === null) return Clutter.EVENT_PROPAGATE;
+          let [x, y] = event.get_coords();
+          let dx = dashLastTouchX - x;
+
+          // 10px threshold: diff between a clumsy tap and a swipe
+          if (!dashIsDragging && Math.abs(dashTouchStartX - x) > 10) {
+            dashIsDragging = true;
+          }
+
+          if (dashIsDragging) {
+            adj.value += dx;
+            dashLastTouchX = x;
+            return Clutter.EVENT_STOP; // Stop buttons from opening while swiping
+          }
+        }
+
+        if (
+          type === Clutter.EventType.TOUCH_END ||
+          type === Clutter.EventType.TOUCH_CANCEL
+        ) {
+          dashTouchStartX = null;
+          if (dashIsDragging) {
+            dashIsDragging = false;
+            return Clutter.EVENT_STOP; // Stop ghost clicks on release
+          }
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+      });
+
+      // Surgery.
 
       dashParent.remove_child(dash._box);
       this.dashWrapper.add_child(dash._box);
@@ -751,43 +825,68 @@ export default class DashStacksExtension extends Extension {
     });
   }
 
-  // ... [Keep _enforceLayout, _getStacksConfig, and disable as they were] ...
-  _enforceLayout() {
-    if (this._enforceTimeoutId) GLib.source_remove(this._enforceTimeoutId);
+ _enforceLayout() {
+    if (this._enforceTimeoutId) {
+      GLib.source_remove(this._enforceTimeoutId);
+    }
+
     this._enforceTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
       let dash = Main.overview.dash;
-      if (!this.dashWrapper || !dash._box) return GLib.SOURCE_REMOVE;
+      if (!this.dashWrapper || !dash._box) {
+        this._enforceTimeoutId = null;
+        return GLib.SOURCE_REMOVE;
+      }
+
       let totalWidth = 0;
       dash._box.layout_manager.spacing = 0;
+
       dash._box.get_children().forEach((c) => {
         c.x_expand = false;
+
         let isSepC = c.style_class && c.style_class.includes("separator");
         let child = c.get_first_child ? c.get_first_child() : null;
+        let isSepChild =
+          child && child.style_class && child.style_class.includes("separator");
+
         if (child) {
           child.x_expand = false;
-          if (
-            isSepC ||
-            (child.style_class && child.style_class.includes("separator"))
-          ) {
+
+          if (isSepC || isSepChild) {
+            // Separators: Keep at 1px
             c.set_width(1);
             child.set_width(1);
             child.set_margin_left(6);
             child.set_margin_right(6);
             totalWidth += 13;
           } else {
+            // Standard Apps/Stacks:
+            // Bump to 80px to account for the 2px + 2px internal padding
             c.set_width(80);
+
+            // Force the icon itself to 76x76
             child.set_width(76);
+            // child.set_height(76);
+
+            // Anchor to top to keep the "basement" for the running dot
+            // child.y_expand = false;
+            // child.y_align = Clutter.ActorAlign.START;
+
             totalWidth += 80;
           }
         } else {
           if (isSepC) {
             c.set_width(1);
             totalWidth += 13;
-          } else c.set_width(0);
+          } else {
+            // Ghost spacer
+            c.set_width(0);
+          }
         }
       });
+
       dash._box.set_width(totalWidth);
       this.dashWrapper.set_width(totalWidth);
+
       this._enforceTimeoutId = null;
       return GLib.SOURCE_REMOVE;
     });
@@ -829,6 +928,10 @@ export default class DashStacksExtension extends Extension {
       if (dashParent) {
         this.dashWrapper.remove_child(dash._box);
         dashParent.remove_child(this.dashScroll);
+        if (this._originalBoxYExpand !== undefined) {
+          dash._box.y_expand = this._originalBoxYExpand;
+          dash._box.y_align = this._originalBoxYAlign;
+        }
         dash._box.set_width(-1);
         dashParent.insert_child_at_index(dash._box, 0);
       }
