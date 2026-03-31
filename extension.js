@@ -489,6 +489,7 @@ const StackButton = GObject.registerClass(
 
     _createHeader(title) {
       let item = new PopupMenu.PopupBaseMenuItem({
+        style_class: "menu-header-item", 
         reactive: false,
         can_focus: false,
       });

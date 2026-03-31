@@ -1,60 +1,89 @@
-.dash-stacks-context-menu .popup-menu-content {
-  background-color: #36363a !important;
-  /* border: 1px solid rgba(255, 255, 255, 0.1); */
-  border-radius: 20px;
-  padding: 0 0 6px 0 !important;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+/* 1. nuke gnome's default padding on the outer item and set your own sides */
+.dash-stacks-context-menu .popup-menu-item {
+    padding: 9px 6px !important; /* 9px top/bottom, 6px sides */
+    margin: 0px !important;
+    min-height: 0px !important;
 }
 
-/* Header/Separator: 18px padding */
-.menu-header {
-  /* margin-top: 10px; */
-  padding: 0 6px 0 6px;
+/* 2. strip the inner box padding so it doesn't double up */
+.dash-stacks-context-menu .popup-menu-item > StBoxLayout {
+    padding: 0px !important;
 }
 
-.header-text {
+/* 3. the gap killer: strip bottom padding from the header wrapper 
+   (requires style_class: "menu-header-item" in your JS) */
+.dash-stacks-context-menu .menu-header-item {
+    padding-bottom: 2px !important; /* tightens the space above the input */
+    padding-top: 2px !important;
+}
+
+/* 4. tight top padding for the input wrapper */
+.dash-stacks-context-menu .menu-input-row {
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+    padding-top: 4px !important; 
+    padding-bottom: 10px !important;
+    background-color: transparent !important;
+}
+
+.dash-stacks-context-menu .header-text {
   font-size: 10pt;
   font-weight: bold;
   color: rgba(255, 255, 255, 0.5);
   margin-right: 12px;
 }
 
-.header-line {
+.dash-stacks-context-menu .header-line {
   height: 1px;
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Input Rows: 6px padding from edges */
-.menu-input-row {
-  padding: 4px 6px 4px 6px !important;
-  background-color: transparent !important;
-}
-
-/* Ensure the entry itself matches the button rounding */
-.menu-entry {
+/* 6. the input entry itself */
+.dash-stacks-context-menu .menu-entry {
   background-color: rgba(255, 255, 255, 0.05) !important;
   border-radius: 12px;
   color: white;
   border: 1px solid transparent;
-  padding: 6px 12px;
+  padding: 8px 10px !important; /* control the actual text box chunkiness here */
 }
 
-.menu-entry:focus {
+.dash-stacks-context-menu .menu-entry:focus {
   background-color: rgba(255, 255, 255, 0.1) !important;
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-/* Delete button also matching the 6px side padding vibe */
-.destruct-button {
-  color: #ff7b72 !important;
-  margin: 4px 6px 0 6px;
-  border-radius: 12px;
-  padding: 10px 12px;
+/* 7. separators */
+.dash-stacks-context-menu .popup-separator-menu-item {
+    /* change the 24px to shrink/grow the line horizontally */
+    padding: 0px 6px !important; 
+    margin: 0px 0px 6px 0px !important;
 }
 
-.destruct-button:hover {
+.dash-stacks-context-menu .popup-menu-separator {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 8px 18px !important; 
+}
+
+/* 8. destruct button */
+.dash-stacks-context-menu .popup-menu-item.destruct-button {
+    padding-left: 12px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    margin-top: 4px !important;
+    min-height: 18px !important;
+}
+
+.dash-stacks-context-menu .destruct-button {
+  color: #ff7b72 !important;
+  border-radius: 12px;
+  /* padding is handled by the .popup-menu-item base class above */
+}
+
+.dash-stacks-context-menu .destruct-button:hover {
   background-color: rgba(248, 81, 73, 0.15) !important;
 }
+
 
 .dash-stacks-separator {
   width: 1px;
