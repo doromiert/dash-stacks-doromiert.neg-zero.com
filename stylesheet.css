@@ -1,7 +1,8 @@
 .dash-stacks-separator {
     width: 1px;
-    height: 64px;
+    height: 64px !important;
     background-color: rgba(255, 255, 255, 0.1);
+    margin: 9px 6px 18px 6px !important;
 }
 
 .dash-stack-button {
@@ -13,7 +14,7 @@
 }
 
 .dash-stack-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
 .stack-popup-wrapper {
@@ -47,7 +48,7 @@
 }
 
 .stack-back-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 .stack-dummy-button {

@@ -1,4 +1,5 @@
 import Cairo from 'gi://cairo';
+import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -12,7 +13,7 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 const CONFIG = {
     popupWidth: 400,
     popupHeight: 300,
-    iconSize: 56
+    iconSize: 48
 };
 
 const CalloutArrow = GObject.registerClass(
@@ -37,6 +38,7 @@ class CalloutArrow extends St.DrawingArea {
 const StackItem = GObject.registerClass(
 class StackItem extends St.Button {
     _init(fileInfo, dirPath, popupRef) {
+        
         super._init({
             style_class: 'stack-item',
             reactive: true,
@@ -88,6 +90,47 @@ class StackItem extends St.Button {
                 Gio.AppInfo.launch_default_for_uri('file://' + this.path, null);
                 Main.overview.hide();
                 popupRef.sourceActor._closePopup();
+            }
+        });
+        // Make the file draggable
+        this._delegate = this; 
+        let draggable = DND.makeDraggable(this, {
+            restoreOnSuccess: false,
+            manualMode: false
+        });
+
+      // Close everything and copy to clipboard on drag start
+        draggable.connect('drag-begin', () => {
+            let fileUri = Gio.File.new_for_path(dirPath + '/' + fileInfo.get_name()).get_uri();
+            let clipboard = St.Clipboard.get_default();
+            clipboard.set_text(St.ClipboardType.CLIPBOARD, fileUri + '\r\n');
+
+            if (popupRef && popupRef.sourceActor) {
+                popupRef.sourceActor._closePopup();
+            }
+            // Main.overview.hide();
+        });
+
+        // Fling-to-Open: Launch the file/app when you let go of the drag
+        draggable.connect('drag-end', () => {
+            let fileName = fileInfo.get_name();
+            let filePath = dirPath + '/' + fileName;
+            
+            try {
+                if (fileName.endsWith('.desktop')) {
+                    // It's an app shortcut: Launch the application itself
+                    let appInfo = Gio.DesktopAppInfo.new_from_filename(filePath);
+                    if (appInfo) {
+                        // Pass an empty array for files, and null for the launch context
+                        appInfo.launch([], null);
+                    }
+                } else {
+                    // It's a regular file or folder: Open with the default app (e.g., Nautilus)
+                    let file = Gio.File.new_for_path(filePath);
+                    Gio.AppInfo.launch_default_for_uri_async(file.get_uri(), null, null, null);
+                }
+            } catch (e) {
+                console.error(`Dash Stacks: Failed to open dragged item - ${e.message}`);
             }
         });
     }
@@ -149,8 +192,84 @@ class StackPopup extends St.BoxLayout {
             hscrollbar_policy: St.PolicyType.NEVER,
             vscrollbar_policy: St.PolicyType.AUTOMATIC,
             enable_mouse_scrolling: true,
+            overlay_scrollbars: true,
             x_expand: true,
             y_expand: true
+        });
+
+       // Manual Touch Scrolling with Momentum
+        let touchStartY = null;
+        let lastTouchY = null;
+        let lastTouchTime = null;
+        let velocity = 0;
+        let isDragging = false;
+
+        this.scroll.connect('captured-event', (actor, event) => {
+            let type = event.type();
+
+            if (type === Clutter.EventType.TOUCH_BEGIN) {
+                // Stop any ongoing momentum glide if user touches screen again
+                this.scroll.vadjustment.remove_transition('value');
+                
+                let [x, y] = event.get_coords();
+                touchStartY = y;
+                lastTouchY = y;
+                lastTouchTime = Date.now();
+                velocity = 0;
+                isDragging = false;
+                return Clutter.EVENT_PROPAGATE;
+            }
+
+            if (type === Clutter.EventType.TOUCH_UPDATE) {
+                if (touchStartY === null) return Clutter.EVENT_PROPAGATE;
+
+                let [x, y] = event.get_coords();
+                let dy = lastTouchY - y;
+                let now = Date.now();
+                let dt = now - lastTouchTime; // Time since last frame
+
+                if (!isDragging && Math.abs(touchStartY - y) > 10) {
+                    isDragging = true;
+                }
+
+                if (isDragging) {
+                    // Calculate pixels per millisecond
+                    if (dt > 0) velocity = dy / dt; 
+                    
+                    this.scroll.vadjustment.value += dy;
+                    lastTouchY = y;
+                    lastTouchTime = now;
+                    return Clutter.EVENT_STOP; 
+                }
+            }
+
+            if (type === Clutter.EventType.TOUCH_END || type === Clutter.EventType.TOUCH_CANCEL) {
+                touchStartY = null;
+                
+                if (isDragging) {
+                    isDragging = false;
+                    
+                    // If the flick was fast enough (> 0.5px/ms), apply momentum
+                    if (Math.abs(velocity) > 0.5) {
+                        let amplitude = velocity * 400; // How far it glides
+                        let targetValue = this.scroll.vadjustment.value + amplitude;
+                        
+                        // Clamp to prevent scrolling past the top/bottom edges
+                        let lower = this.scroll.vadjustment.lower;
+                        let upper = this.scroll.vadjustment.upper - this.scroll.vadjustment.page_size;
+                        targetValue = Math.max(lower, Math.min(targetValue, upper));
+
+                        // Animate the glide
+                        this.scroll.vadjustment.ease(targetValue, {
+                            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                            duration: 800 // ms
+                        });
+                    }
+                    return Clutter.EVENT_STOP;
+                }
+            }
+
+            return Clutter.EVENT_PROPAGATE;
         });
 
         this.grid = new St.BoxLayout({ 
@@ -243,12 +362,21 @@ class StackButton extends St.Button {
 
         this.set_child(new St.Icon({
             icon_name: stackConfig.icon,
-            icon_size: 48
+            icon_size: 56
         }));
 
         this.connect('button-press-event', () => {
             this._togglePopup();
             return Clutter.EVENT_STOP;
+        });
+
+        // Add touch support
+        this.connect('touch-event', (actor, event) => {
+            if (event.type() === Clutter.EventType.TOUCH_BEGIN) {
+                this._togglePopup();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
         });
     }
 
@@ -328,8 +456,6 @@ class StackButton extends St.Button {
 export default class DashStacksExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
-        
-        // Listen to settings changes so dash updates without needing to restart extension
         this._settingsSignal = this._settings.connect('changed::stacks', () => {
             this._injectStacks();
         });
@@ -343,6 +469,41 @@ export default class DashStacksExtension extends Extension {
         };
         
         this._injectStacks();
+
+        // // --- DASH SCROLL INJECTION ---
+        // let dash = Main.overview.dash;
+        // let dashParent = dash._box.get_parent();
+
+        // this.dashScroll = new St.ScrollView({
+        //     hscrollbar_policy: St.PolicyType.AUTOMATIC,
+        //     vscrollbar_policy: St.PolicyType.NEVER,
+        //     enable_mouse_scrolling: true,
+        //     overlay_scrollbars: true,
+        //     x_expand: true,
+        //     y_expand: true
+        // });
+
+        // let maxWidth = global.stage.width - (76 * 2);
+        // this.dashScroll.style = `max-width: ${maxWidth}px;`;
+
+        // // THE ALLOCATION FIX: Save original states so we can revert them cleanly
+        // this._originalBoxState = {
+        //     x_expand: dash._box.x_expand,
+        //     y_expand: dash._box.y_expand,
+        //     x_align: dash._box.x_align,
+        //     y_align: dash._box.y_align
+        // };
+
+        // // Force GNOME's _box to completely fill the ScrollView so it doesn't collapse to 0x0
+        // dash._box.x_expand = true;
+        // dash._box.y_expand = true;
+        // dash._box.x_align = Clutter.ActorAlign.FILL;
+        // dash._box.y_align = Clutter.ActorAlign.FILL;
+
+        // // Perform the surgery
+        // dashParent.remove_child(dash._box);
+        // this.dashScroll.add_child(dash._box);
+        // dashParent.insert_child_at_index(this.dashScroll, 0);
     }
 
     _getStacksConfig() {
@@ -409,5 +570,29 @@ export default class DashStacksExtension extends Extension {
             btn.destroy();
         });
         this._buttons = [];
+
+        // --- DASH SCROLL REVERT ---
+        // if (this.dashScroll) {
+        //     let dash = Main.overview.dash;
+        //     let dashParent = this.dashScroll.get_parent();
+
+        //     if (dashParent) {
+        //         this.dashScroll.remove_child(dash._box);
+        //         dashParent.remove_child(this.dashScroll);
+                
+        //         // Revert the allocation states back to GNOME defaults
+        //         if (this._originalBoxState) {
+        //             dash._box.x_expand = this._originalBoxState.x_expand;
+        //             dash._box.y_expand = this._originalBoxState.y_expand;
+        //             dash._box.x_align = this._originalBoxState.x_align;
+        //             dash._box.y_align = this._originalBoxState.y_align;
+        //         }
+                
+        //         dashParent.insert_child_at_index(dash._box, 0);
+        //     }
+
+        //     this.dashScroll.destroy();
+        //     this.dashScroll = null;
+        // }
     }
 }

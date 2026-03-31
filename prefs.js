@@ -74,7 +74,7 @@ export default class DashStacksPreferences extends ExtensionPreferences {
             let addRow = new Adw.ActionRow({ title: 'Add New Stack' });
             let addBtn = new Gtk.Button({ icon_name: 'list-add-symbolic', valign: Gtk.Align.CENTER });
             addBtn.connect('clicked', () => {
-                stacks.push({ name: 'New Stack', path: '~/', icon: 'folder-symbolic' });
+                stacks.push({ name: 'New Stack', path: '~/', icon: 'folder' });
                 save(stacks);
                 renderList(); // Re-render will now cleanly wipe and rebuild
             });
