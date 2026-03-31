@@ -237,7 +237,7 @@ const StackPopup = GObject.registerClass(
           icon_name: "folder-open-symbolic",
           icon_size: 16,
         }),
-        style_class: "stack-nautilus-button", 
+        style_class: "stack-nautilus-button",
         reactive: true,
         x_align: Clutter.ActorAlign.CENTER,
         y_align: Clutter.ActorAlign.CENTER,
@@ -292,7 +292,7 @@ const StackPopup = GObject.registerClass(
           let [x, y] = event.get_coords();
           let dy = lastTouchY - y;
           let now = Date.now();
-          let timeSinceLastFrame = now - lastTouchTime; 
+          let timeSinceLastFrame = now - lastTouchTime;
 
           if (!isDragging && Math.abs(touchStartY - y) > 10) {
             isDragging = true;
@@ -487,53 +487,98 @@ const StackButton = GObject.registerClass(
       });
     }
 
-    _buildMenu() {
-      this._menu.removeAll();
-
-      let nameItem = new PopupMenu.PopupBaseMenuItem({
+    _createHeader(title) {
+      let item = new PopupMenu.PopupBaseMenuItem({
         reactive: false,
         can_focus: false,
       });
-      nameItem.actor.x_expand = true; // force the menu item to expand
-      let nameBox = new St.BoxLayout({ vertical: true, x_expand: true });
-      nameBox.add_child(
-        new St.Label({ text: "Rename", style_class: "menu-label" }),
-      );
+
+      let headerBox = new St.BoxLayout({
+        style_class: "menu-header",
+        x_expand: true,
+      });
+
+      let label = new St.Label({
+        text: title,
+        style_class: "header-text",
+      });
+
+      let line = new St.Widget({
+        style_class: "header-line",
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+
+      headerBox.add_child(label);
+      headerBox.add_child(line);
+
+      item.add_child(headerBox);
+      return item;
+    }
+
+    _buildMenu() {
+      this._menu.removeAll();
+
+      // 1. Rename Section
+      this._menu.addMenuItem(this._createHeader("Rename"));
+
+      let nameItem = new PopupMenu.PopupBaseMenuItem({
+        reactive: true, // reactive so the whole row is a hit-target
+        can_focus: true,
+        style_class: "menu-input-row",
+      });
+
       let nameEntry = new St.Entry({
         text: this.config.name,
         style_class: "menu-entry",
         x_expand: true,
       });
+      nameEntry.set_x_align(Clutter.ActorAlign.FILL);
+
+      // Transfer focus to entry if the row is clicked
+      nameItem.connect("button-press-event", () => {
+        nameEntry.grab_key_focus();
+        return Clutter.EVENT_STOP;
+      });
+
       nameEntry.clutter_text.connect("activate", () => {
         this._updateConfig("name", nameEntry.get_text());
         this._menu.close();
       });
-      nameBox.add_child(nameEntry);
-      nameItem.add_child(nameBox);
+
+      nameItem.add_child(nameEntry);
       this._menu.addMenuItem(nameItem);
 
+      // 2. Icon Section
+      this._menu.addMenuItem(this._createHeader("Change Icon"));
+
       let iconItem = new PopupMenu.PopupBaseMenuItem({
-        reactive: false,
-        can_focus: false,
+        reactive: true,
+        can_focus: true,
+        style_class: "menu-input-row",
       });
-      iconItem.actor.x_expand = true; 
-      let iconBox = new St.BoxLayout({ vertical: true, x_expand: true });
-      iconBox.add_child(
-        new St.Label({ text: "Rename", style_class: "menu-label" }),
-      );
+
       let iconEntry = new St.Entry({
         text: this.config.icon,
         style_class: "menu-entry",
         x_expand: true,
       });
+      iconEntry.set_x_align(Clutter.ActorAlign.FILL);
+
+      iconItem.connect("button-press-event", () => {
+        iconEntry.grab_key_focus();
+        return Clutter.EVENT_STOP;
+      });
+
       iconEntry.clutter_text.connect("activate", () => {
         this._updateConfig("icon", iconEntry.get_text());
         this._menu.close();
       });
-      iconBox.add_child(iconEntry);
-      iconItem.add_child(iconBox);
+
+      iconItem.add_child(iconEntry);
       this._menu.addMenuItem(iconItem);
 
+      // 3. Delete
       this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
       let deleteItem = new PopupMenu.PopupMenuItem("Delete Stack");
@@ -541,7 +586,6 @@ const StackButton = GObject.registerClass(
       deleteItem.connect("activate", () => this._deleteSelf());
       this._menu.addMenuItem(deleteItem);
     }
-
     _updateConfig(key, value) {
       let stacks = JSON.parse(this._settings.get_string("stacks"));
       if (stacks[this._index]) {
@@ -713,7 +757,7 @@ export default class DashStacksExtension extends Extension {
 
       this.dashScroll = new St.ScrollView({
         style_class: "dash-scroll-view",
-        hscrollbar_policy: St.PolicyType.EXTERNAL, 
+        hscrollbar_policy: St.PolicyType.EXTERNAL,
         vscrollbar_policy: St.PolicyType.NEVER,
         overlay_scrollbars: true,
         enable_mouse_scrolling: true,
@@ -964,7 +1008,7 @@ export default class DashStacksExtension extends Extension {
         dashParent.remove_child(this.masterLayout);
       }
 
-      dash._box.set_width(-1); 
+      dash._box.set_width(-1);
 
       this.dashWrapper.destroy();
       this.dashScroll.destroy();

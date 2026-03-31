@@ -1,46 +1,55 @@
-.dash-stacks-context-menu {
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
 .dash-stacks-context-menu .popup-menu-content {
   background-color: #36363a !important;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* border: 1px solid rgba(255, 255, 255, 0.1); */
   border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  padding: 0 0 6px 0 !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
 }
 
-.dash-stacks-context-menu .popup-menu-item {
+/* Header/Separator: 18px padding */
+.menu-header {
+  /* margin-top: 10px; */
+  padding: 0 6px 0 6px;
+}
+
+.header-text {
+  font-size: 10pt;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.5);
+  margin-right: 12px;
+}
+
+.header-line {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Input Rows: 6px padding from edges */
+.menu-input-row {
+  padding: 4px 6px 4px 6px !important;
   background-color: transparent !important;
-  border-radius: 12px;
 }
 
-.dash-stacks-context-menu .popup-menu-item:hover {
-  color: #ff7b72 !important;
-}
-
-.menu-label {
-  font-size: 9pt;
-  opacity: 0.6;
-  margin-bottom: 4px;
-  margin-left: 4px;
-}
-
+/* Ensure the entry itself matches the button rounding */
 .menu-entry {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
   border-radius: 12px;
   color: white;
   border: 1px solid transparent;
-  min-width: 200px; 
+  padding: 6px 12px;
 }
 
 .menu-entry:focus {
-  background-color: rgba(255, 255, 255, 0.12) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+/* Delete button also matching the 6px side padding vibe */
 .destruct-button {
   color: #ff7b72 !important;
+  margin: 4px 6px 0 6px;
+  border-radius: 12px;
+  padding: 10px 12px;
 }
 
 .destruct-button:hover {
@@ -74,7 +83,7 @@
   background-color: #36363a;
   border-radius: 16px;
   padding: 12px;
-  box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
 }
 
 .stack-header {
@@ -137,7 +146,6 @@
 
 .dash-scroll-wrapper {
   height: 96px !important;
-
 }
 
 .dash-scroll-wrapper > * {
@@ -167,15 +175,14 @@
   height: 0px;
 }
 
-
 .dash-custom-app-container {
   width: 76px !important;
 }
 
 .dash-custom-app-child {
   width: 76px !important;
-  height: 76px !important; 
-  margin: 0 !important; 
+  height: 76px !important;
+  margin: 0 !important;
   padding: 0 !important;
 }
 
@@ -183,7 +190,6 @@
 .dash-custom-sep-container,
 .dash-custom-sep-child {
   width: 1px !important;
-  
 }
 
 .dash-custom-ghost-spacer {
