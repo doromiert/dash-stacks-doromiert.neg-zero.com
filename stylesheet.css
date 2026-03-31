@@ -92,7 +92,18 @@
 }
 
 .dash-scroll-view StScrollBar {
+    width: 0px;
+    height: 0px;
     opacity: 0;
+    -st-background-image: none;
+}
+
+/* gnome 45+ often requires targeting the scrollbar bin specifically */
+.dash-scroll-view > StScrollBar {
+    min-width: 0px;
+    min-height: 0px;
+    width: 0px;
+    height: 0px;
 }
 
 /* --- CUSTOM DASH LAYOUT TUNING --- */
