@@ -503,7 +503,7 @@ const StackPopup = GObject.registerClass(
 
 const StackButton = GObject.registerClass(
   class StackButton extends St.Button {
-    _init(stackConfig, settings, index) {
+_init(stackConfig, settings, index) {
       super._init({
         style_class: "dash-stack-button dash-item-container",
         reactive: true,
@@ -619,7 +619,47 @@ const StackButton = GObject.registerClass(
         }
         return Clutter.EVENT_PROPAGATE;
       });
+      this._longPressId = 0;
+
+      this.connect("touch-event", (actor, event) => {
+        const type = event.type();
+
+        if (type === Clutter.EventType.TOUCH_BEGIN) {
+          // start the "right click" timer (500ms)
+          this._longPressId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            this.tooltip.hide_tooltip();
+            this._menu.toggle();
+            this._longPressId = 0; // nulling this marks the long-press as handled
+            return GLib.SOURCE_REMOVE;
+          });
+          return Clutter.EVENT_STOP;
+        }
+
+        if (type === Clutter.EventType.TOUCH_END) {
+          if (this._longPressId > 0) {
+            // timer is still ticking, so the user let go quickly (a tap)
+            GLib.source_remove(this._longPressId);
+            this._longPressId = 0;
+            this._togglePopup(); // normal open action
+          }
+          // if _longPressId was 0, it means the long-press already triggered, 
+          // so we just consume the event and do nothing.
+          return Clutter.EVENT_STOP;
+        }
+
+        if (type === Clutter.EventType.TOUCH_CANCEL) {
+          if (this._longPressId > 0) {
+            GLib.source_remove(this._longPressId);
+            this._longPressId = 0;
+          }
+          return Clutter.EVENT_STOP;
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+      });;
     }
+      
+    
 
     _getGridIcons(fullPath) {
       let icons = [];
@@ -1068,7 +1108,7 @@ const StackButton = GObject.registerClass(
 );
 
 export default class DashStacksExtension extends Extension {
-  enable() {
+ enable() {
     this._settings = this.getSettings();
     
     const syncConfig = () => {
@@ -1078,7 +1118,7 @@ export default class DashStacksExtension extends Extension {
         CONFIG.tooltipDelay = this._settings.get_int('tooltip-delay');
     };
     
-    syncConfig(); // initial pull
+    syncConfig();
     
     this._settingsSignal = this._settings.connect("changed::stacks", () => {
       this._injectStacks();
@@ -1166,64 +1206,64 @@ export default class DashStacksExtension extends Extension {
       let dashLastTouchX = null;
       let dashIsDragging = false;
 
-      this.dashScroll.connect("captured-event", (actor, event) => {
-        let type = event.type();
-        let adj = this.dashScroll.hadjustment;
+  this.dashScroll.connect("captured-event", (actor, event) => {
+    let type = event.type();
+    let adj = this.dashScroll.hadjustment;
 
-        if (type === Clutter.EventType.SCROLL) {
-          let direction = event.get_scroll_direction();
-          let scrollAmount = 76;
-          if (direction === Clutter.ScrollDirection.SMOOTH) {
-            let [dx, dy] = event.get_scroll_delta();
-            let delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
-            adj.value += delta * 30;
-          } else if (
-            direction === Clutter.ScrollDirection.UP ||
-            direction === Clutter.ScrollDirection.LEFT
-          ) {
+    if (type === Clutter.EventType.SCROLL) {
+        let source = event.get_scroll_source();
+
+        // if it's NOT a mouse wheel (e.g., trackpad, smooth scroll), 
+        // stop trying to math it and let the system handle the physics.
+        if (source !== Clutter.ScrollSource.WHEEL) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        // if we're here, it's a mouse. do the 76px step.
+        let direction = event.get_scroll_direction();
+        let scrollAmount = 76;
+
+        if (direction === Clutter.ScrollDirection.UP || direction === Clutter.ScrollDirection.LEFT) {
             adj.value -= scrollAmount;
-          } else if (
-            direction === Clutter.ScrollDirection.DOWN ||
-            direction === Clutter.ScrollDirection.RIGHT
-          ) {
+        } else if (direction === Clutter.ScrollDirection.DOWN || direction === Clutter.ScrollDirection.RIGHT) {
             adj.value += scrollAmount;
-          }
-          return Clutter.EVENT_STOP;
         }
 
-        if (type === Clutter.EventType.TOUCH_BEGIN) {
-          let [x, y] = event.get_coords();
-          dashTouchStartX = x;
-          dashLastTouchX = x;
-          dashIsDragging = false;
-          return Clutter.EVENT_PROPAGATE;
-        }
+        return Clutter.EVENT_STOP;
+    }
 
-        if (type === Clutter.EventType.TOUCH_UPDATE) {
-          if (dashTouchStartX === null) return Clutter.EVENT_PROPAGATE;
-          let [x, y] = event.get_coords();
-          let dx = dashLastTouchX - x;
-          if (!dashIsDragging && Math.abs(dashTouchStartX - x) > 10)
+    // touch handling for physical screens stays the same
+    if (type === Clutter.EventType.TOUCH_BEGIN) {
+        let [x, y] = event.get_coords();
+        dashTouchStartX = x;
+        dashLastTouchX = x;
+        dashIsDragging = false;
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    if (type === Clutter.EventType.TOUCH_UPDATE) {
+        if (dashTouchStartX === null) return Clutter.EVENT_PROPAGATE;
+        let [x, y] = event.get_coords();
+        let dx = dashLastTouchX - x;
+        if (!dashIsDragging && Math.abs(dashTouchStartX - x) > 10)
             dashIsDragging = true;
-          if (dashIsDragging) {
+        if (dashIsDragging) {
             adj.value += dx;
             dashLastTouchX = x;
             return Clutter.EVENT_STOP;
-          }
         }
+    }
 
-        if (
-          type === Clutter.EventType.TOUCH_END ||
-          type === Clutter.EventType.TOUCH_CANCEL
-        ) {
-          dashTouchStartX = null;
-          if (dashIsDragging) {
+    if (type === Clutter.EventType.TOUCH_END || type === Clutter.EventType.TOUCH_CANCEL) {
+        dashTouchStartX = null;
+        if (dashIsDragging) {
             dashIsDragging = false;
             return Clutter.EVENT_STOP;
-          }
         }
-        return Clutter.EVENT_PROPAGATE;
-      });
+    }
+
+    return Clutter.EVENT_PROPAGATE;
+});
 
       let showApps = dash.showAppsButton;
       dashBox.remove_child(showApps);
@@ -1239,7 +1279,6 @@ export default class DashStacksExtension extends Extension {
 
       this._updateMaxWidth = () => {
         let monitor = Main.layoutManager.currentMonitor;
-        // Padding: 76*2 (edges) + 80 (approx space for All Apps button)
         let maxWidth = monitor.width - 76 * 2 - 80;
         this.dashScroll.style = `max-width: ${maxWidth}px;`;
       };
