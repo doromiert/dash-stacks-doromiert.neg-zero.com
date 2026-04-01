@@ -620,30 +620,46 @@ _init(stackConfig, settings, index) {
         return Clutter.EVENT_PROPAGATE;
       });
       this._longPressId = 0;
+      this._pressXY = [0, 0];
 
       this.connect("touch-event", (actor, event) => {
+        const [x, y] = event.get_coords();
         const type = event.type();
 
         if (type === Clutter.EventType.TOUCH_BEGIN) {
-          // start the "right click" timer (500ms)
-          this._longPressId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+          this._pressXY = [x, y];
+          // start the "right click" timer (600ms feels better on pads)
+          this._longPressId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
             this.tooltip.hide_tooltip();
             this._menu.toggle();
-            this._longPressId = 0; // nulling this marks the long-press as handled
+            this._longPressId = 0;
             return GLib.SOURCE_REMOVE;
           });
           return Clutter.EVENT_STOP;
         }
 
+        if (type === Clutter.EventType.TOUCH_UPDATE) {
+          if (this._longPressId > 0) {
+            const dist = Math.sqrt(
+              Math.pow(x - this._pressXY[0], 2) + Math.pow(y - this._pressXY[1], 2)
+            );
+            // if they move more than 15px, it's a swipe, not a hold. kill it.
+            if (dist > 15) {
+              GLib.source_remove(this._longPressId);
+              this._longPressId = 0;
+            }
+          }
+          // CRITICAL: stop propagation so Mutter doesn't steal the gesture
+          return Clutter.EVENT_STOP;
+        }
+
         if (type === Clutter.EventType.TOUCH_END) {
           if (this._longPressId > 0) {
-            // timer is still ticking, so the user let go quickly (a tap)
+            // it was a quick tap
             GLib.source_remove(this._longPressId);
             this._longPressId = 0;
-            this._togglePopup(); // normal open action
+            this._togglePopup();
           }
-          // if _longPressId was 0, it means the long-press already triggered, 
-          // so we just consume the event and do nothing.
           return Clutter.EVENT_STOP;
         }
 
@@ -656,8 +672,28 @@ _init(stackConfig, settings, index) {
         }
 
         return Clutter.EVENT_PROPAGATE;
-      });;
-    }
+      });
+
+      // keep this only for mouse users
+      this.connect("button-press-event", (actor, event) => {
+        // ignore synthesized touch events to avoid double-triggers
+        if (event.get_source_device().get_device_type() === Clutter.InputDeviceType.TOUCHSCREEN_DEVICE)
+            return Clutter.EVENT_PROPAGATE;
+
+        const button = event.get_button();
+        if (button === 1) {
+          this._togglePopup();
+          return Clutter.EVENT_STOP;
+        } else if (button === 3) {
+          this.tooltip.hide_tooltip();
+          this._menu.toggle();
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      });
+
+        
+      }
       
     
 
@@ -1201,56 +1237,48 @@ export default class DashStacksExtension extends Extension {
 
       this.dashScroll.reactive = true;
       this.dashWrapper.reactive = true;
-
-      let dashTouchStartX = null;
-      let dashLastTouchX = null;
-      let dashIsDragging = false;
-
-  this.dashScroll.connect("captured-event", (actor, event) => {
+this.dashScroll.connect("captured-event", (actor, event) => {
     let type = event.type();
     let adj = this.dashScroll.hadjustment;
 
     if (type === Clutter.EventType.SCROLL) {
         let source = event.get_scroll_source();
+        if (source !== Clutter.ScrollSource.WHEEL) return Clutter.EVENT_PROPAGATE;
 
-        // if it's NOT a mouse wheel (e.g., trackpad, smooth scroll), 
-        // stop trying to math it and let the system handle the physics.
-        if (source !== Clutter.ScrollSource.WHEEL) {
-            return Clutter.EVENT_PROPAGATE;
-        }
-
-        // if we're here, it's a mouse. do the 76px step.
         let direction = event.get_scroll_direction();
         let scrollAmount = 76;
-
-        if (direction === Clutter.ScrollDirection.UP || direction === Clutter.ScrollDirection.LEFT) {
-            adj.value -= scrollAmount;
-        } else if (direction === Clutter.ScrollDirection.DOWN || direction === Clutter.ScrollDirection.RIGHT) {
-            adj.value += scrollAmount;
-        }
+        if (direction === Clutter.ScrollDirection.UP || direction === Clutter.ScrollDirection.LEFT) adj.value -= scrollAmount;
+        else if (direction === Clutter.ScrollDirection.DOWN || direction === Clutter.ScrollDirection.RIGHT) adj.value += scrollAmount;
 
         return Clutter.EVENT_STOP;
     }
 
-    // touch handling for physical screens stays the same
+    // --- TOUCH BEGIN (YOU DELETED THIS) ---
     if (type === Clutter.EventType.TOUCH_BEGIN) {
         let [x, y] = event.get_coords();
         dashTouchStartX = x;
         dashLastTouchX = x;
         dashIsDragging = false;
-        return Clutter.EVENT_PROPAGATE;
+        // let it propagate so buttons know a touch started
+        return Clutter.EVENT_PROPAGATE; 
     }
 
     if (type === Clutter.EventType.TOUCH_UPDATE) {
         if (dashTouchStartX === null) return Clutter.EVENT_PROPAGATE;
         let [x, y] = event.get_coords();
         let dx = dashLastTouchX - x;
-        if (!dashIsDragging && Math.abs(dashTouchStartX - x) > 10)
+        
+        if (!dashIsDragging && Math.abs(dashTouchStartX - x) > 10) {
             dashIsDragging = true;
+            // tell the system this scrollview OWNS the pointer now
+            // this sends the TOUCH_CANCEL to your buttons
+            Clutter.grab_pointer(this.dashScroll); 
+        }
+
         if (dashIsDragging) {
             adj.value += dx;
             dashLastTouchX = x;
-            return Clutter.EVENT_STOP;
+            return Clutter.EVENT_STOP; 
         }
     }
 
@@ -1258,6 +1286,7 @@ export default class DashStacksExtension extends Extension {
         dashTouchStartX = null;
         if (dashIsDragging) {
             dashIsDragging = false;
+            Clutter.ungrab_pointer(); 
             return Clutter.EVENT_STOP;
         }
     }
